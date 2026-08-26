@@ -214,6 +214,17 @@
     display: none;
   }
   .field.invalid .error-msg { display: block; }
+  .hint-msg {
+    font-size: 11px;
+    color: var(--warn);
+    background: var(--warn-light);
+    border: 1px solid #F0E0A8;
+    border-radius: 6px;
+    padding: 6px 8px;
+    margin-top: 6px;
+    display: none;
+  }
+  .hint-msg.show { display: block; }
   .field.invalid input,
   .field.invalid select,
   .field.invalid textarea { border-color: var(--danger); background: #fff8f8; }
@@ -459,22 +470,25 @@
             <option>Projeto Flexibilidade</option>
             <option>Caldeiraria</option>
             <option>Obra de Infraestrutura </option>
+            <option>Infraestrutura-CDS</option>
           </select>
         </div>
         <div class="error-msg">Obrigatório</div>
       </div>
 
-      <div class="field-row">
+      <div class="field-row" id="row-turno-letra">
         <div class="field" id="f-turno">
           <label>Turno <span class="req">*</span></label>
           <div class="select-wrap">
-            <select id="turno" onchange="update()">
+            <select id="turno" onchange="onTurnoChange()">
               <option value="">Selecione...</option>
               <option>1º Turno</option>
               <option>2º Turno</option>
+              <option>Subsolo-CDS</option>
             </select>
           </div>
           <div class="error-msg">Obrigatório</div>
+          <div class="hint-msg" id="hintDataRef"></div>
         </div>
         <div class="field" id="f-letra">
           <label>Letra <span class="req">*</span></label>
@@ -696,12 +710,47 @@ function fuelSel(el, value) {
   update();
 }
 
+// Data de referência do relatório.
+// No 2º Turno a jornada começa no dia anterior ao preenchimento,
+// por isso o relatório considera a data do dia anterior.
+function dataReferencia() {
+  const pad = n => String(n).padStart(2,'0');
+  const d = new Date();
+  const t = document.getElementById('turno');
+  if (t && t.value === '2º Turno') d.setDate(d.getDate() - 1);
+  return `${pad(d.getDate())}/${pad(d.getMonth()+1)}/${d.getFullYear()}`;
+}
+
+// O turno Subsolo-CDS tem escala própria, portanto não utiliza Letra
+function turnoSemLetra() {
+  const el = document.getElementById('turno');
+  return el && el.value === 'Subsolo-CDS';
+}
+
+function onTurnoChange() {
+  const fLetra = document.getElementById('f-letra');
+  const row = document.getElementById('row-turno-letra');
+  if (turnoSemLetra()) {
+    vals['letra'] = '';
+    fLetra.querySelectorAll('.pill').forEach(p => p.className = 'pill');
+    fLetra.classList.remove('invalid');
+    fLetra.style.display = 'none';
+    row.style.gridTemplateColumns = '1fr';
+  } else {
+    fLetra.style.display = '';
+    row.style.gridTemplateColumns = '';
+  }
+  document.getElementById('f-turno').classList.remove('invalid');
+  update();
+}
+
 function getReqFields() {
-  const base = ['tag','operador','obra','turno','letra',
+  const base = ['tag','operador','obra','turno',
           'locEquip','locRadio','cco',
           'combustivel',
           'horimetroInicial','horimetroFinal',
           'limpezaInterna','limpezaExterna','materialCesto'];
+  if (!turnoSemLetra()) base.splice(4, 0, 'letra');
   if (vals['materialCesto'] === 'Sim') base.push('materialCestoDesc');
   return base;
 }
@@ -730,6 +779,19 @@ function selPillCesto(el, value) {
 
 function update() {
   const req = getReqFields();
+
+  // Aviso de data de referência no 2º Turno
+  const hint = document.getElementById('hintDataRef');
+  const t = document.getElementById('turno');
+  if (hint) {
+    if (t && t.value === '2º Turno') {
+      hint.textContent = `Data de referência: ${dataReferencia()}`;
+      hint.classList.add('show');
+    } else {
+      hint.classList.remove('show');
+    }
+  }
+
   const filled = req.filter(fieldFilled).length;
   const pct = Math.round(filled / req.length * 100);
   document.getElementById('progressFill').style.width = pct + '%';
@@ -757,16 +819,17 @@ function gerarRelatorio() {
   const hFin = g('horimetroFinal');
   const horas = (parseFloat(hFin) - parseFloat(hIni)).toFixed(1);
   const obs = g('obs') || '-';
+  const linhaTurno = turnoSemLetra() ? `Turno: ${g('turno')}` : `Turno: ${g('turno')} - Letra ${v('letra')}`;
 
   const txt = [
     `*RELATÓRIO DE FIM DE TURNO - PLATAFORMA*`,
-    `Data/Hora: ${nowStr()}`,
+    `Data de Referência: ${dataReferencia()}`,
     ``,
     `*IDENTIFICAÇÃO*`,
     `Equipamento/TAG: ${g('tag')}`,
     `Operador: ${g('operador')}`,
     `Obra de Atuação: ${g('obra')}`,
-    `Turno: ${g('turno')} - Letra ${v('letra')}`,
+    linhaTurno,
     ``,
     `*LOCALIZAÇÃO*`,
     `Localização do Equipamento: ${g('locEquip')}`,
@@ -795,7 +858,7 @@ function gerarRelatorio() {
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
   document.getElementById('successInfo').textContent =
-    `${g('tag')} • ${g('operador')} • ${g('turno')} - Letra ${v('letra')}`;
+    `${g('tag')} • ${g('operador')} • ${linhaTurno.replace('Turno: ','')}`;
   document.getElementById('reportBox').textContent = txt;
   document.getElementById('waBtn').href = `https://wa.me/?text=${encodeURIComponent(txt)}`;
   window.scrollTo({top:0,behavior:'smooth'});
