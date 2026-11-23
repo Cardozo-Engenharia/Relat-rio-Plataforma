@@ -226,6 +226,40 @@
   }
   .hint-msg.show { display: block; }
 
+  /* AUTOCOMPLETE (nome do operador) */
+  .ac-list {
+    display: none;
+    position: absolute;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    margin-top: 2px;
+    max-height: 210px;
+    overflow-y: auto;
+    background: #fff;
+    border: 1.5px solid var(--blue);
+    border-radius: 7px;
+    box-shadow: 0 6px 18px rgba(30,79,189,0.15);
+  }
+  .ac-list.show { display: block; }
+  .ac-item {
+    padding: 9px 12px;
+    font-size: 13px;
+    color: var(--text);
+    cursor: pointer;
+    border-bottom: 1px solid var(--border);
+  }
+  .ac-item:last-child { border-bottom: none; }
+  .ac-item:hover, .ac-item:active { background: #EEF3FF; color: var(--blue); }
+  .ac-empty { padding: 9px 12px; font-size: 13px; color: var(--gray); }
+  .ac-ok {
+    font-size: 11px;
+    color: var(--success);
+    margin-top: 4px;
+    display: none;
+  }
+  .ac-ok.show { display: block; }
+
   /* RÁDIO VINCULADO */
   .radio-box {
     display: flex;
@@ -490,10 +524,12 @@
         <div class="error-msg">Obrigatório</div>
       </div>
 
-      <div class="field" id="f-operador">
+      <div class="field" id="f-operador" style="position:relative">
         <label>Nome do Operador <span class="req">*</span></label>
-        <input type="text" id="operador" placeholder="Nome completo do operador" oninput="update()">
-        <div class="error-msg">Obrigatório</div>
+        <input type="text" id="operadorInput" placeholder="Comece a digitar o nome..."
+               autocomplete="off" oninput="filtraOperadores()" onfocus="filtraOperadores()">
+        <div class="ac-list" id="operadorList"></div>
+        <div class="error-msg">Selecione um nome da lista</div>
       </div>
 
       <div class="field" id="f-obra">
@@ -537,6 +573,21 @@
         </div>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ATIVIDADE REALIZADA -->
+  <div class="section">
+    <div class="section-header">
+      <i class="ti ti-clipboard-text"></i>
+      <span>Atividade Realizada</span>
+    </div>
+    <div class="section-body">
+      <div class="field" id="f-atividade">
+        <label>Atividade Realizada no Turno <span class="req">*</span></label>
+        <textarea id="atividade" placeholder="Descreva a atividade executada no turno" oninput="update()"></textarea>
+        <div class="error-msg">Obrigatório</div>
+      </div>
     </div>
   </div>
 
@@ -756,6 +807,83 @@
 const vals = {};
 
 /* ============================================================
+   CADASTRO DE OPERADORES
+   Para incluir ou retirar, basta editar a lista abaixo,
+   mantendo o nome entre aspas e a vírgula no fim da linha.
+   ============================================================ */
+const OPERADORES = [
+  'ANGELO BRUNO DOS SANTOS',
+  'CESAR FERREIRA DOS REIS',
+  'CLEBER SOARES AFONSO',
+  'DEIVY MARCOS DOS REIS SANTOS',
+  'EDER BERNARDINO CUSTODIO',
+  'GABRIEL AUGUSTO DIVINO TORRES DA SILVA',
+  'GLADSNEY ERLON DOS ANJOS',
+  'IGOR AVENDANHA',
+  'JEFFERSON HENRIQUE DE OLIVEIRA SILVA',
+  'JOSEVALDO FELIPE DA SILVA',
+  'LEONARDO MARTINS DE ANDRADE',
+  'LOURENCO GOMES XAVIER JUNIOR',
+  'LUCIANO CAMPOS DE OLIVEIRA',
+  'NEYMAR DA CONCEIÇÃO SILVA',
+  'RICARDO RODRIGUES FERREIRA',
+  'WANDERSON CELESTE DIAS DE AMORIM',
+  'WESLEY NUNES RIBEIRO'
+];
+
+// Ignora acentos e maiúsculas na busca
+function normaliza(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase();
+}
+
+function filtraOperadores() {
+  const input = document.getElementById('operadorInput');
+  const lista = document.getElementById('operadorList');
+  const termo = normaliza(input.value.trim());
+
+  // O nome só vale quando vem da lista: digitou de novo, perde a seleção
+  if (vals['operador'] && input.value !== vals['operador']) delete vals['operador'];
+
+  const achados = termo
+    ? OPERADORES.filter(n => normaliza(n).includes(termo))
+    : OPERADORES;
+
+  lista.innerHTML = '';
+  if (achados.length === 0) {
+    const d = document.createElement('div');
+    d.className = 'ac-empty';
+    d.textContent = 'Nenhum operador encontrado';
+    lista.appendChild(d);
+  } else {
+    achados.forEach(nome => {
+      const d = document.createElement('div');
+      d.className = 'ac-item';
+      d.textContent = nome;
+      d.onmousedown = () => escolheOperador(nome);
+      lista.appendChild(d);
+    });
+  }
+  lista.classList.add('show');
+  update();
+}
+
+function escolheOperador(nome) {
+  document.getElementById('operadorInput').value = nome;
+  vals['operador'] = nome;
+  document.getElementById('operadorList').classList.remove('show');
+  document.getElementById('f-operador').classList.remove('invalid');
+  update();
+}
+
+// Fecha a lista ao tocar fora do campo
+document.addEventListener('click', function(e) {
+  const campo = document.getElementById('f-operador');
+  if (campo && !campo.contains(e.target)) {
+    document.getElementById('operadorList').classList.remove('show');
+  }
+});
+
+/* ============================================================
    CADASTRO DE RÁDIOS
    Para atualizar, basta alterar o número ao lado do equipamento.
    Deixe '' (vazio) enquanto o rádio ainda não tiver numeração.
@@ -763,9 +891,9 @@ const vals = {};
 const RADIOS = {
   'MT-01':    '08',
   'CDZ-022':  '10',
-  'CDZ-034':  '17',
+  'CDZ-034':  '',
   'CDZ-035':  '',
-  'CDZ-036':  '19'
+  'CDZ-036':  ''
 };
 
 // Monta a lista de rádios disponíveis para o campo "rádio em uso"
@@ -921,13 +1049,13 @@ function onTurnoChange() {
 }
 
 function getReqFields() {
-  const base = ['tag','operador','obra','turno',
+  const base = ['tag','operador','obra','atividade','turno',
           'locEquip','cco',
           'locRadio',
           'combustivel',
           'horimetroInicial','horimetroFinal',
           'limpezaInterna','limpezaExterna','materialCesto'];
-  if (!turnoSemLetra()) base.splice(4, 0, 'letra');
+  if (!turnoSemLetra()) base.splice(5, 0, 'letra');
   if (radioVinculado()) base.push('radioConfere');
   if (tagSemRadio() || vals['radioConfere'] === 'Não') base.push('radioUso');
   if (vals['radioConfere'] === 'Não') base.push('radioObs');
@@ -936,7 +1064,7 @@ function getReqFields() {
 }
 
 function fieldFilled(f) {
-  if (['letra','cco','combustivel','limpezaInterna','limpezaExterna','materialCesto','radioConfere'].includes(f)) return !!vals[f];
+  if (['operador','letra','cco','combustivel','limpezaInterna','limpezaExterna','materialCesto','radioConfere'].includes(f)) return !!vals[f];
   if (f === 'materialCestoDesc' || f === 'radioObs') { const el = document.getElementById(f); return el && el.value.trim() !== ''; }
   const el = document.getElementById(f);
   if (!el) return false;
@@ -1026,9 +1154,10 @@ function gerarRelatorio() {
     ``,
     `*IDENTIFICAÇÃO*`,
     `Equipamento/TAG: ${g('tag')}`,
-    `Operador: ${g('operador')}`,
+    `Operador: ${v('operador')}`,
     `Obra de Atuação: ${g('obra')}`,
     linhaTurno,
+    `Atividade Realizada: ${g('atividade')}`,
     ``,
     `*LOCALIZAÇÃO*`,
     `Localização do Equipamento: ${g('locEquip')}`,
@@ -1059,7 +1188,7 @@ function gerarRelatorio() {
   document.getElementById('mainApp').style.display = 'none';
   document.getElementById('successScreen').style.display = 'block';
   document.getElementById('successInfo').textContent =
-    `${g('tag')} • ${g('operador')} • ${linhaTurno.replace('Turno: ','')}`;
+    `${g('tag')} • ${v('operador')} • ${linhaTurno.replace('Turno: ','')}`;
   document.getElementById('reportBox').textContent = txt;
   document.getElementById('waBtn').href = `https://wa.me/?text=${encodeURIComponent(txt)}`;
   window.scrollTo({top:0,behavior:'smooth'});
@@ -1073,6 +1202,7 @@ function novoRelatorio() {
   document.querySelectorAll('.pill').forEach(p => p.className = 'pill');
   document.querySelectorAll('.fuel-btn').forEach(b => b.classList.remove('selected'));
   document.querySelectorAll('.field').forEach(f => f.classList.remove('invalid'));
+  document.getElementById('operadorList').classList.remove('show');
   onTagChange();
   window.scrollTo({top:0,behavior:'smooth'});
 }
